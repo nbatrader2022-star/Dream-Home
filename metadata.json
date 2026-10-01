@@ -1,0 +1,8 @@
+{
+  "name": "خانه آرمانی | پلتفرم تخصصی املاک لوکس",
+  "description": "خرید، فروش، رهن و اجاره املاک لوکس در پایتخت و ۲۱ کلان‌شهر ایران با تور مجازی سه‌بعدی",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

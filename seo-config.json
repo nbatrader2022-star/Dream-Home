@@ -1,0 +1,15 @@
+{
+  "siteName": "خانه آرمانی | پلتفرم تخصصی املاک لوکس",
+  "siteDescription": "خرید، فروش، رهن و اجاره املاک لوکس در پایتخت و ۲۱ کلان‌شهر ایران با تور مجازی سه‌بعدی",
+  "defaultOgImage": "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80",
+  "canonicalBaseUrl": "https://dreamhome.ir",
+  "pages": {
+    "home": {
+      "title": "خانه آرمانی | پلتفرم تخصصی املاک لوکس",
+      "description": "خرید، فروش، رهن و اجاره املاک لوکس در پایتخت و ۲۱ کلان‌شهر ایران با تور مجازی سه‌بعدی",
+      "keywords": "املاک لوکس, خرید خانه لوکس تهران, ویلا لواسان, پنت‌هاوس",
+      "ogImage": "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80",
+      "robots": "index, follow"
+    }
+  }
+}

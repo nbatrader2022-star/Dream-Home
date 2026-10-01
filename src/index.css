@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+:root {
+  --charcoal: #1A1A2E;
+  --charcoal-light: #16213E;
+  --charcoal-mid: #0F3460;
+  --gold: #C9A84C;
+  --gold-light: #E4C675;
+  --gold-dark: #A07830;
+  --cream: #F8F4EF;
+  --cream-dark: #EDE8E0;
+  --green: #2D6A4F;
+  --green-light: #40916C;
+  --green-pale: #D8F3DC;
+  --white: #FFFFFF;
+  --black: #0A0A0F;
+  --text-primary: #1A1A2E;
+  --text-secondary: #5A5A7A;
+  --text-light: #9A9AB0;
+  --border: rgba(201,168,76,0.2);
+  --shadow-sm: 0 2px 8px rgba(26,26,46,0.08);
+  --shadow-md: 0 8px 24px rgba(26,26,46,0.12);
+  --shadow-lg: 0 16px 48px rgba(26,26,46,0.18);
+  --shadow-xl: 0 32px 80px rgba(26,26,46,0.25);
+  --shadow-gold: 0 8px 32px rgba(201,168,76,0.3);
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 40px;
+  --radius-full: 9999px;
+  --transition-fast: 150ms cubic-bezier(0.16,1,0.3,1);
+  --transition-base: 300ms cubic-bezier(0.16,1,0.3,1);
+  --transition-slow: 600ms cubic-bezier(0.16,1,0.3,1);
+  --font-main: 'Vazirmatn FD', 'Vazirmatn', sans-serif;
+  --font-secondary: 'Shabnam', 'Vazirmatn FD', 'Vazirmatn', sans-serif;
+  --section-pad: clamp(64px, 8vw, 120px);
+
+  /* Sticky Header Heights & Dynamic Page Offset Variables */
+  --header-height-mobile: 74px;
+  --header-height-tablet: 82px;
+  --header-height-desktop: 90px;
+  --header-height: var(--header-height-mobile);
+  --header-safe-gap: 1.75rem;
+  --page-top-offset: calc(var(--header-height) + var(--header-safe-gap));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --header-height: var(--header-height-tablet);
+    --header-safe-gap: 2.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --header-height: var(--header-height-desktop);
+    --header-safe-gap: 2.75rem;
+  }
+}
+
+/* Global Centralized Layout & Breadcrumb Positioning Classes */
+.global-page-wrapper {
+  padding-top: var(--page-top-offset) !important;
+  min-height: 100vh;
+  position: relative;
+  z-index: 10;
+}
+
+.global-breadcrumb-container {
+  position: relative;
+  z-index: 20;
+}
+
+body {
+  font-family: var(--font-main);
+  background: var(--cream);
+  color: var(--text-primary);
+  line-height: 1.7;
+  direction: rtl;
+  overflow-x: hidden;
+  font-feature-settings: "ss01" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-main);
+  font-feature-settings: "ss01" 1;
+}
+
+input, textarea, select, button {
+  font-family: var(--font-main);
+  font-feature-settings: "ss01" 1;
+}
+
+.font-primary {
+  font-family: var(--font-main) !important;
+  font-feature-settings: "ss01" 1 !important;
+}
+
+.font-secondary {
+  font-family: var(--font-secondary) !important;
+  font-feature-settings: "ss01" 1 !important;
+}
+
+/* Custom CMS and Visual Editor font override for Persian digits */
+.cms-element, [data-cms-id], .cms-editable {
+  font-family: var(--font-main) !important;
+  font-feature-settings: "ss01" 1 !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1A1A2E;
+}
+::-webkit-scrollbar-thumb {
+  background: #C9A84C;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #E4C675;
+}
+
+/* Animations */
+@keyframes drawHouse {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes loadProgress {
+  to { width: 100%; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes floatCard {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-12px) rotate(0.5deg); }
+  66% { transform: translateY(6px) rotate(-0.5deg); }
+}
+
+@keyframes particleFloat {
+  0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100px) translateX(30px); opacity: 0; }
+}
+
+@keyframes pulseGold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.7); }
+  50% { box-shadow: 0 0 0 8px rgba(201,168,76,0); }
+}
+
+@keyframes ripplePlay {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes waPulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(37,211,102,0.4); }
+  50% { box-shadow: 0 8px 40px rgba(37,211,102,0.7); }
+}
+
+@keyframes phoneShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@keyframes skylinePulse {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.18; }
+}
+
+.animate-pulse-gold {
+  animation: pulseGold 2s infinite;
+}
+
+.animate-float-card {
+  animation: floatCard 6s ease-in-out infinite;
+}
+
+.animate-wa-pulse {
+  animation: waPulse 3s infinite;
+}
+
+.animate-phone-shake {
+  animation: phoneShake 0.5s ease;
+}
+
+/* 3D Transform Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-menu-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-menu-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+.custom-menu-scrollbar::-webkit-scrollbar-thumb {
+  background: #C9A84C;
+  border-radius: 4px;
+}
+.custom-menu-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #E4C675;
+}
+

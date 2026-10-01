@@ -1,0 +1,43 @@
+import { RenovationProject } from '../types';
+
+export const DEFAULT_RENOVATION_PROJECTS: RenovationProject[] = [
+  {
+    id: 'renov-living',
+    roomName: 'سالن پذیرایی و نشیمن اصلی',
+    beforeTitle: 'پلان قدیمی با کفپوش فرسوده و نورپردازی محدود',
+    afterTitle: 'بازسازی نئو‌کلاسیک با سنگ اسلب و نورپردازی خطی هوشمند',
+    beforeImage: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+    afterImage: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
+    description: 'تخریب دیوارهای مزاحم، اجرای سیستم نورپردازی مگنتی خطی، تعویض کفپوش به سنگ اسلب ۲×۳ بوک‌مچ لته ترکیه، کناف سقف با عایق صوتی و اجرای سیستم صوتی توکار یاماها.',
+    durationWeeks: 6,
+    costTomans: 1450000000,
+    valueAddedPercent: 35,
+    materials: ['سنگ اسلب لته ترکیه', 'سیستم هوشمند KNX', 'رنگ پلی‌اورتان ضدخش', 'پنجره‌های ترمال‌بریک سه جداره'],
+  },
+  {
+    id: 'renov-kitchen',
+    roomName: 'آشپزخانه جزیره و مطبخ مدرن',
+    beforeTitle: 'کابینت‌های فلزی قدیمی با جانمایی غیرکاربردی',
+    afterTitle: 'کابینت‌های انزو پولیشی با جزیره کوارتز و تجهیزات بوش',
+    beforeImage: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=1200&q=80',
+    afterImage: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1200&q=80',
+    description: 'طراحی مجدد پلان آشپزخانه، ساخت جزیره آبشاری ۳.۵ متری با سنگ کوارتز آنتی‌باکتریال، اجرای کابینت‌های پولیشی انزو ایتالیا، هود مخفی جزیره و سیستم تصفیه آب مرکزی.',
+    durationWeeks: 5,
+    costTomans: 980000000,
+    valueAddedPercent: 42,
+    materials: ['کوارتز سوپروایت', 'کابینت پولیشی انزو', 'یراق‌آلات بلوم اتریش', 'شیرآلات شوان آلمان'],
+  },
+  {
+    id: 'renov-master',
+    roomName: 'مستر سوئیت و حمام اسپا',
+    beforeTitle: 'اتاق خواب سنتی با فضای تفکیک‌نشده',
+    afterTitle: 'مستر روم لوکس با واک‌این کلوزت شیشه‌ای و وان جکوزی',
+    beforeImage: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80',
+    afterImage: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80',
+    description: 'طراحی کلوزت‌روم با کمد دیواری‌های فریم آلومینیومی و شیشه دودی هوشمند، اجرای کفپوش پارکت چوب طبیعی گردو، سرویس مستر با کاشی‌های اسلب کلاکاتا و وان مستقل جکوزی‌دار.',
+    durationWeeks: 4,
+    costTomans: 720000000,
+    valueAddedPercent: 28,
+    materials: ['شیشه اسمارت دودی', 'پارکت چوب طبیعی گردو', 'شیرآلات توکار هانس‌گروهه', 'چراغ‌های خطی COB'],
+  },
+];
