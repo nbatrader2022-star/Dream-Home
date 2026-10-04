@@ -1,6 +1,5 @@
 import { getSupabaseClient } from '../lib/supabase';
 import { UserProfile, AdminUserRecord } from '../types';
-import { SUPER_ADMIN_EMAIL } from '../data/admins';
 
 export interface AdminAuthState {
   isAuthenticated: boolean;
@@ -10,11 +9,12 @@ export interface AdminAuthState {
   token: string | null;
 }
 
-const SUPER_ADMIN_FALLBACK_EMAIL = 'luxury.investor@gmail.com';
-const SUPER_ADMIN_SECONDARY_EMAIL = 'nabikalandar0@gmail.com';
+// In-memory token cache for verified Supabase session
+let inMemoryAdminToken: string | null = null;
 
 /**
- * Verifies if a user has the 'superadmin' role in Supabase admin_users table
+ * Verifies if a user has the 'superadmin' role in Supabase admin_users table.
+ * Strictly requires a verified Supabase user and active superadmin status in public.admin_users.
  */
 export async function verifySuperAdminRole(
   userId?: string,
@@ -24,7 +24,7 @@ export async function verifySuperAdminRole(
   const supabase = getSupabaseClient();
   const targetEmail = (email || '').trim().toLowerCase();
 
-  // 1. Try server-side verification with JWT if accessToken is present
+  // 1. Cryptographically verify with server-side requireSuperAdmin middleware if accessToken is provided
   if (accessToken) {
     try {
       const res = await fetch('/api/auth/verify-superadmin', {
@@ -34,73 +34,38 @@ export async function verifySuperAdminRole(
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.isSuperAdmin) {
+        if (data.isSuperAdmin && data.adminRecord?.role === 'superadmin' && data.adminRecord?.status === 'active') {
           return {
             isSuperAdmin: true,
-            adminRecord: data.adminRecord || {
-              id: data.adminRecord?.id || 'admin-super',
-              userId: userId,
-              email: targetEmail,
-              name: data.adminRecord?.name || 'مدیر ارشد سرمایه‌گذاری (Super Admin)',
-              role: 'superadmin',
-              status: 'active',
-              createdAt: new Date().toISOString(),
-            },
+            adminRecord: data.adminRecord,
           };
         }
       }
     } catch {
-      // Fallback to role check API or direct Supabase client query
+      // Continue to direct Supabase client query
     }
   }
 
-  // 2. Query backend RBAC endpoint that inspects Supabase admin_users table
-  if (targetEmail) {
-    try {
-      const res = await fetch(`/api/auth/check-role?email=${encodeURIComponent(targetEmail)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.isSuperAdmin && data.role === 'superadmin' && data.status === 'active') {
-          return {
-            isSuperAdmin: true,
-            adminRecord: data.adminRecord || {
-              id: data.adminRecord?.id || 'admin-super-01',
-              userId: userId,
-              email: targetEmail,
-              name: data.adminRecord?.name || 'مدیر ارشد سرمایه‌گذاری (Super Admin)',
-              role: 'superadmin',
-              status: 'active',
-              createdAt: new Date().toISOString(),
-            },
-          };
-        }
-      }
-    } catch {
-      // Continue to direct Supabase query
-    }
-  }
-
-  // 3. Direct Supabase query against admin_users table (RLS protected)
+  // 2. Direct Supabase query against admin_users table using the authenticated session (RLS protected)
   if (supabase && (userId || targetEmail)) {
     try {
       let query = supabase.from('admin_users').select('*');
       if (userId) {
-        query = query.or(`user_id.eq.${userId},email.ilike.${targetEmail}`);
+        query = query.eq('user_id', userId);
       } else {
         query = query.ilike('email', targetEmail);
       }
 
       const { data, error } = await query.maybeSingle();
 
-      if (!error && data) {
-        const isSuper = data.role === 'superadmin' && data.status === 'active';
+      if (!error && data && data.role === 'superadmin' && data.status === 'active') {
         return {
-          isSuperAdmin: isSuper,
+          isSuperAdmin: true,
           adminRecord: {
             id: data.id,
             userId: data.user_id,
             email: data.email,
-            name: data.name || 'مدیر ارشد سرمایه‌گذاری (Super Admin)',
+            name: data.name || 'مدیر ارشد',
             role: data.role,
             status: data.status,
             createdAt: data.created_at,
@@ -109,7 +74,7 @@ export async function verifySuperAdminRole(
         };
       }
     } catch (err) {
-      console.warn('Direct admin_users check note:', err);
+      console.warn('Direct admin_users check error:', err);
     }
   }
 
@@ -130,17 +95,14 @@ export function notifyAdminAuthListeners(state: AdminAuthState) {
 }
 
 /**
- * Retrieve current cached admin token
+ * Retrieve current verified admin token from in-memory session
  */
 export function getAdminSessionToken(): string | null {
-  try {
-    const raw = localStorage.getItem('dream_home_admin_session');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed?.token) return parsed.token;
-    }
-  } catch {}
-  return null;
+  return inMemoryAdminToken;
+}
+
+export function setAdminSessionToken(token: string | null) {
+  inMemoryAdminToken = token;
 }
 
 /**
@@ -172,6 +134,7 @@ export async function signInAdminWithSupabase(
         );
 
         if (isSuperAdmin) {
+          inMemoryAdminToken = token;
           const userProfile: UserProfile = {
             uid: sbUser.id,
             displayName: adminRecord?.name || sbUser.user_metadata?.full_name || 'مدیر ارشد',
@@ -188,10 +151,6 @@ export async function signInAdminWithSupabase(
             adminRecord,
             token,
           };
-
-          try {
-            localStorage.setItem('dream_home_admin_session', JSON.stringify(authState));
-          } catch {}
 
           notifyAdminAuthListeners(authState);
           return authState;
@@ -214,7 +173,8 @@ export async function signInAdminWithSupabase(
 
     if (res.ok) {
       const json = await res.json();
-      if (json.success && json.isSuperAdmin) {
+      if (json.success && json.isSuperAdmin && json.token) {
+        inMemoryAdminToken = json.token;
         const userProfile: UserProfile = {
           uid: json.user?.id || 'admin-super-01',
           displayName: json.user?.name || 'مدیر کل سیستم',
@@ -225,7 +185,8 @@ export async function signInAdminWithSupabase(
         };
 
         const adminRecord: AdminUserRecord = {
-          id: 'admin-super-01',
+          id: json.adminRecord?.id || 'admin-super-01',
+          userId: json.user?.id,
           email: normalizedEmail,
           name: json.user?.name || 'مدیر ارشد سیستم',
           role: 'superadmin',
@@ -240,10 +201,6 @@ export async function signInAdminWithSupabase(
           adminRecord,
           token: json.token,
         };
-
-        try {
-          localStorage.setItem('dream_home_admin_session', JSON.stringify(authState));
-        } catch {}
 
         notifyAdminAuthListeners(authState);
         return authState;
@@ -325,6 +282,8 @@ export async function signUpAdminWithSupabase(
  * Sign out admin session
  */
 export async function signOutAdmin(): Promise<void> {
+  inMemoryAdminToken = null;
+
   try {
     localStorage.removeItem('dream_home_admin_session');
     localStorage.removeItem('dream_home_auth_user');
@@ -356,16 +315,16 @@ export async function signOutAdmin(): Promise<void> {
 }
 
 /**
- * Get current authenticated Supabase session & verify superadmin
+ * Get current authenticated Supabase session & verify superadmin.
+ * Supabase Auth is the ONLY source of truth.
  */
 export async function getCurrentAdminSession(): Promise<AdminAuthState> {
   const supabase = getSupabaseClient();
 
-  // 1. Check Supabase session first if available
   if (supabase) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
+      if (session?.user && session.access_token) {
         const sbUser = session.user;
         const token = session.access_token;
         const { isSuperAdmin, adminRecord } = await verifySuperAdminRole(
@@ -374,7 +333,8 @@ export async function getCurrentAdminSession(): Promise<AdminAuthState> {
           token
         );
 
-        if (isSuperAdmin) {
+        if (isSuperAdmin && adminRecord) {
+          inMemoryAdminToken = token;
           const profile: UserProfile = {
             uid: sbUser.id,
             displayName: adminRecord?.name || sbUser.user_metadata?.full_name || 'مدیر کل سیستم',
@@ -384,19 +344,13 @@ export async function getCurrentAdminSession(): Promise<AdminAuthState> {
             createdAt: sbUser.created_at || new Date().toISOString(),
           };
 
-          const state: AdminAuthState = {
+          return {
             isAuthenticated: true,
             isSuperAdmin: true,
             user: profile,
             adminRecord,
             token,
           };
-
-          try {
-            localStorage.setItem('dream_home_admin_session', JSON.stringify(state));
-          } catch {}
-
-          return state;
         }
       }
     } catch (err) {
@@ -404,29 +358,35 @@ export async function getCurrentAdminSession(): Promise<AdminAuthState> {
     }
   }
 
-  // 2. Check cached local admin session and strictly re-verify against database
-  try {
-    const raw = localStorage.getItem('dream_home_admin_session');
-    if (raw) {
-      const parsed: AdminAuthState = JSON.parse(raw);
-      if (parsed?.token || parsed?.user?.email) {
-        const verifyRes = await verifySuperAdminRole(
-          parsed.user?.uid,
-          parsed.user?.email,
-          parsed.token || undefined
-        );
-        if (verifyRes.isSuperAdmin) {
-          parsed.isSuperAdmin = true;
-          parsed.adminRecord = verifyRes.adminRecord;
-          return parsed;
-        } else {
-          // Token or user is no longer an active super admin in database
-          localStorage.removeItem('dream_home_admin_session');
+  // 2. Check in-memory admin token if active in current session
+  if (inMemoryAdminToken) {
+    try {
+      const res = await fetch('/api/auth/verify-superadmin', {
+        headers: { Authorization: `Bearer ${inMemoryAdminToken}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.isSuperAdmin && json.user) {
+          return {
+            isAuthenticated: true,
+            isSuperAdmin: true,
+            user: {
+              uid: json.user.id || 'admin-super-01',
+              displayName: json.user.name || 'مدیر کل سیستم',
+              email: json.user.email || '',
+              savedProperties: [],
+              role: 'superadmin',
+              createdAt: new Date().toISOString(),
+            },
+            adminRecord: json.adminRecord || null,
+            token: inMemoryAdminToken,
+          };
         }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
+  inMemoryAdminToken = null;
   return {
     isAuthenticated: false,
     isSuperAdmin: false,
@@ -444,11 +404,9 @@ export function subscribeToSupabaseAuth(
 ) {
   localAuthListeners.push(callback);
 
-  // Send current cached state immediately
+  // Send current verified session state immediately
   getCurrentAdminSession().then((curr) => {
-    if (curr.isSuperAdmin) {
-      callback(curr);
-    }
+    callback(curr);
   });
 
   const supabase = getSupabaseClient();
@@ -457,7 +415,7 @@ export function subscribeToSupabaseAuth(
   if (supabase) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (session?.user) {
+        if (session?.user && session.access_token) {
           const sbUser = session.user;
           const token = session.access_token;
           const { isSuperAdmin, adminRecord } = await verifySuperAdminRole(
@@ -466,41 +424,35 @@ export function subscribeToSupabaseAuth(
             token
           );
 
-          const state: AdminAuthState = {
-            isAuthenticated: true,
-            isSuperAdmin,
-            user: {
-              uid: sbUser.id,
-              displayName: adminRecord?.name || sbUser.user_metadata?.full_name || 'مدیر ارشد',
-              email: sbUser.email || '',
-              savedProperties: [],
-              role: isSuperAdmin ? 'superadmin' : 'client',
-              createdAt: sbUser.created_at || new Date().toISOString(),
-            },
-            adminRecord,
-            token,
-          };
-
-          if (isSuperAdmin) {
-            try {
-              localStorage.setItem('dream_home_admin_session', JSON.stringify(state));
-            } catch {}
-          }
-
-          callback(state);
-        } else {
-          // If no supabase session, check local session before clearing
-          const local = getAdminSessionToken();
-          if (!local) {
-            callback({
-              isAuthenticated: false,
-              isSuperAdmin: false,
-              user: null,
-              adminRecord: null,
-              token: null,
-            });
+          if (isSuperAdmin && adminRecord) {
+            inMemoryAdminToken = token;
+            const state: AdminAuthState = {
+              isAuthenticated: true,
+              isSuperAdmin: true,
+              user: {
+                uid: sbUser.id,
+                displayName: adminRecord?.name || sbUser.user_metadata?.full_name || 'مدیر ارشد',
+                email: sbUser.email || '',
+                savedProperties: [],
+                role: 'superadmin',
+                createdAt: sbUser.created_at || new Date().toISOString(),
+              },
+              adminRecord,
+              token,
+            };
+            callback(state);
+            return;
           }
         }
+
+        inMemoryAdminToken = null;
+        callback({
+          isAuthenticated: false,
+          isSuperAdmin: false,
+          user: null,
+          adminRecord: null,
+          token: null,
+        });
       }
     );
     unsubSupabase = () => subscription.unsubscribe();

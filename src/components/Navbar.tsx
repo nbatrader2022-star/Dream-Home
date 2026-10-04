@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Linkedin,
   LogOut,
+  LogIn,
   CheckCircle2,
   ShieldCheck,
   User,
@@ -55,8 +56,10 @@ interface NavbarProps {
   isAdmin?: boolean;
   onNavigate?: (sectionId: string) => void;
   user?: UserProfile | null;
+  onOpenLogin?: () => void;
   onGoogleSignIn?: () => void;
   onSignOut?: () => void;
+  onOpenUserProfile?: () => void;
   currentPage?: string;
 }
 
@@ -97,8 +100,10 @@ export function Navbar({
   isAdmin = false,
   onNavigate,
   user,
+  onOpenLogin,
   onGoogleSignIn,
   onSignOut,
+  onOpenUserProfile,
   currentPage = 'home',
 }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
@@ -245,12 +250,10 @@ export function Navbar({
   }, []);
 
   const isStrictAuthorized = Boolean(
-    isSupabaseAdmin ||
-    (user?.email && isUserAuthorizedAdmin(user.email)) ||
-    isAdmin
+    isSupabaseAdmin || isAdmin
   );
 
-  // Only verified Super Admin in Supabase or authorized admin emails see the Admin Panel button
+  // Only verified Super Admin in Supabase sees the Admin Panel button
   const shouldShowAdmin = isStrictAuthorized;
 
   const handleOpenMap = () => {
@@ -659,6 +662,19 @@ export function Navbar({
                         </span>
                       </button>
 
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          if (onOpenUserProfile) onOpenUserProfile();
+                        }}
+                        className="w-full flex items-center justify-between text-xs text-white/80 hover:text-white hover:bg-white/5 px-3 py-2 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-[#C9A84C]" />
+                          مدیریت پروفایل کاربری
+                        </span>
+                      </button>
+
                       {/* Admin Panel Direct Access - ONLY VISIBLE IF CURRENT USER IS ADMIN */}
                       {shouldShowAdmin && onOpenAdmin && (
                         <>
@@ -775,13 +791,19 @@ export function Navbar({
               </div>
             ) : (
               <button
-                onClick={onGoogleSignIn}
-                className="hidden md:flex items-center gap-1 xl:gap-1.5 bg-white/10 hover:bg-white/15 text-white font-medium text-[10px] xl:text-xs px-2 xl:px-2.5 py-1 rounded-full border border-[#C9A84C]/50 hover:border-[#C9A84C] shadow-sm hover:shadow-[0_4px_16px_rgba(201,168,76,0.3)] transition-all cursor-pointer whitespace-nowrap shrink-0"
-                title="ورود با حساب گوگل جهت همگام‌سازی ابری املاک"
+                id="navbar-login-btn"
+                onClick={() => {
+                  if (onOpenLogin) {
+                    onOpenLogin();
+                  } else if (onGoogleSignIn) {
+                    onGoogleSignIn();
+                  }
+                }}
+                className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-white/10 to-white/5 hover:from-[#C9A84C]/25 hover:to-[#C9A84C]/15 text-white font-bold text-[11px] xl:text-xs px-3 xl:px-3.5 py-1.5 rounded-full border border-[#C9A84C]/60 hover:border-[#C9A84C] shadow-sm hover:shadow-[0_4px_16px_rgba(201,168,76,0.35)] transition-all cursor-pointer whitespace-nowrap shrink-0"
+                title="ورود به سامانه یا پنل مدیریت"
               >
-                <GoogleIcon />
-                <span className="hidden lg:inline text-[10px] xl:text-xs">ورود با گوگل</span>
-                <span className="lg:hidden text-[10px]">ورود</span>
+                <LogIn className="w-3.5 h-3.5 text-[#E4C675]" />
+                <span>ورود</span>
               </button>
             )}
 
@@ -862,14 +884,19 @@ export function Navbar({
             </div>
           ) : (
             <button
+              id="mobile-drawer-login-btn"
               onClick={() => {
                 closeMenu();
-                if (onGoogleSignIn) onGoogleSignIn();
+                if (onOpenLogin) {
+                  onOpenLogin();
+                } else if (onGoogleSignIn) {
+                  onGoogleSignIn();
+                }
               }}
-              className="w-full flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/15 text-white font-semibold py-2.5 px-4 rounded-xl border border-[#C9A84C]/40 text-sm transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-[#A07830] via-[#C9A84C] to-[#E4C675] text-[#1A1A2E] font-bold py-2.5 px-4 rounded-xl shadow-md text-sm transition-all cursor-pointer hover:brightness-105"
             >
-              <GoogleIcon />
-              <span>ورود با حساب گوگل</span>
+              <LogIn className="w-4 h-4 text-[#1A1A2E]" />
+              <span>ورود به سایت</span>
             </button>
           )}
         </div>
@@ -926,9 +953,10 @@ export function Navbar({
 
           <button
             onClick={(e) => handleNavClick(e, 'properties')}
-            className="w-full text-white/90 text-sm font-semibold py-2 px-2 rounded-lg hover:bg-white/5 border-b border-white/5 hover:text-[#C9A84C] transition-colors text-right cursor-pointer"
+            className="w-full text-white/90 text-sm font-semibold py-2 px-2 rounded-lg hover:bg-white/5 border-b border-white/5 hover:text-[#C9A84C] transition-colors flex items-center justify-between cursor-pointer"
           >
-            ملک‌های ویژه و منتخب
+            <span>ملک‌های ویژه و منتخب</span>
+            <Sparkles className="w-4 h-4 text-[#C9A84C]" />
           </button>
 
           <button
@@ -970,9 +998,10 @@ export function Navbar({
 
           <button
             onClick={(e) => handleNavClick(e, 'neighborhoods')}
-            className="w-full text-white/90 text-sm font-semibold py-2 px-2 rounded-lg hover:bg-white/5 border-b border-white/5 hover:text-[#C9A84C] transition-colors text-right cursor-pointer"
+            className="w-full text-white/90 text-sm font-semibold py-2 px-2 rounded-lg hover:bg-white/5 border-b border-white/5 hover:text-[#C9A84C] transition-colors flex items-center justify-between cursor-pointer"
           >
-            محله‌های لوکس تهران و شهرستان‌ها
+            <span>محله‌های لوکس تهران و شهرستان‌ها</span>
+            <MapPin className="w-4 h-4 text-[#C9A84C]" />
           </button>
 
           <button
@@ -1010,9 +1039,10 @@ export function Navbar({
 
           <button
             onClick={(e) => handleNavClick(e, 'blog')}
-            className="w-full text-white/90 text-sm font-semibold py-2 px-2 rounded-lg hover:bg-white/5 border-b border-white/5 hover:text-[#C9A84C] transition-colors text-right cursor-pointer"
+            className="w-full text-white/90 text-sm font-semibold py-2 px-2 rounded-lg hover:bg-white/5 border-b border-white/5 hover:text-[#C9A84C] transition-colors flex items-center justify-between cursor-pointer"
           >
-            مقالات آموزشی و راهنمای حقوقی
+            <span>مقالات آموزشی و راهنمای حقوقی</span>
+            <FileText className="w-4 h-4 text-[#C9A84C]" />
           </button>
 
           <button

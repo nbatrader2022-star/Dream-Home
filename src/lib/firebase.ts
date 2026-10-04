@@ -72,6 +72,10 @@ export function setLocalStoredUser(user: UserProfile | null) {
   } catch {}
 }
 
+export function isGoogleAuthAvailable(): boolean {
+  return Boolean(isFirebaseConfigured && auth && googleProvider);
+}
+
 export async function signInWithGoogle(currentSavedList: string[] = []): Promise<UserProfile> {
   // If real Firebase Auth is configured and available
   if (auth && googleProvider) {
@@ -118,24 +122,12 @@ export async function signInWithGoogle(currentSavedList: string[] = []): Promise
       setLocalStoredUser(userProfile);
       return userProfile;
     } catch (err: any) {
-      console.warn('Firebase signInWithPopup note, providing seamless Google login experience:', err);
-      // Fall through to seamless fallback
+      console.warn('Firebase signInWithPopup note:', err?.message || err);
+      throw new Error(err.message || 'خطا در احراز هویت با حساب گوگل. لطفاً مجدداً تلاش کنید.');
     }
   }
 
-  // Graceful interactive Google Sign-In for environments without configured external OAuth keys
-  const simulatedGoogleUser: UserProfile = {
-    uid: 'google-user-' + Math.random().toString(36).substring(2, 9),
-    displayName: 'مدیر ارشد سامانه (Super Admin)',
-    email: 'nabikalandar0@gmail.com',
-    photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    savedProperties: currentSavedList,
-    role: 'superadmin',
-    createdAt: new Date().toISOString(),
-  };
-
-  setLocalStoredUser(simulatedGoogleUser);
-  return simulatedGoogleUser;
+  throw new Error('سیستم ورود با گوگل در دسترس نیست. لطفاً از ورود امن با نام کاربری و رمز عبور استفاده فرمایید.');
 }
 
 export async function signOutUser(): Promise<void> {

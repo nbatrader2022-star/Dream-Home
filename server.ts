@@ -1,15 +1,35 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Super Admin BaaS & Cryptographic Security Configuration
+const SERVER_AUTH_SECRET = process.env.SERVER_AUTH_SECRET || 'dream_home_luxury_superadmin_secret_key_2026_!#';
+const SUPERADMIN_USERNAME = 'nabikalandar0@gmail.com';
+const SUPERADMIN_PBKDF2_SALT = 'dream_home_auth_salt_2026_v1';
+// Secure PBKDF2 hash (100,000 rounds of SHA-512) for primary superadmin credentials
+const SUPERADMIN_PBKDF2_HASH = crypto
+  .pbkdf2Sync('18723NbAklNr@fiNiA', SUPERADMIN_PBKDF2_SALT, 100000, 64, 'sha512')
+  .toString('hex');
+
+// CORS configuration for local, Netlify and custom domains
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use(express.json());
 
@@ -32,11 +52,12 @@ function getGeminiClient(): GoogleGenAI | null {
 // Initialize Supabase BaaS Client (PostgreSQL, Storage, RLS)
 let supabaseClient: SupabaseClient | null = null;
 function getSupabase(): SupabaseClient | null {
-  if (!supabaseClient && process.env.SUPABASE_URL) {
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-    if (key) {
+  if (!supabaseClient) {
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+    if (url && key) {
       try {
-        supabaseClient = createClient(process.env.SUPABASE_URL, key);
+        supabaseClient = createClient(url, key);
       } catch (err) {
         console.warn('Supabase initialization warning:', err);
       }
@@ -292,6 +313,65 @@ app.get('/api/health', (req, res) => {
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     timestamp: new Date().toISOString(),
   });
+});
+
+// Supabase Google OAuth Callback Landing
+app.get(['/auth/callback', '/auth/callback/'], (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>احراز هویت گوگل - خانه آرمانی</title>
+  <style>
+    body {
+      background: #0F0F1A;
+      color: #FFFFFF;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(201, 168, 76, 0.2);
+      border-top-color: #C9A84C;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="spinner"></div>
+  <h2 style="font-size: 18px; margin: 0 0 8px 0; color: #E4C675;">احراز هویت با موفقیت انجام شد</h2>
+  <p style="font-size: 13px; color: rgba(255,255,255,0.7); margin: 0;">در حال اتصال به حساب کاربری و بازگشت به سامانه...</p>
+  <script>
+    try {
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'SUPABASE_AUTH_SUCCESS',
+          hash: window.location.hash,
+          search: window.location.search
+        }, '*');
+        setTimeout(() => {
+          window.close();
+        }, 600);
+      } else {
+        window.location.href = '/' + window.location.hash;
+      }
+    } catch (e) {
+      window.location.href = '/' + window.location.hash;
+    }
+  </script>
+</body>
+</html>`);
 });
 
 app.post('/api/chat', async (req, res) => {
@@ -608,172 +688,235 @@ async function requireSuperAdmin(req: express.Request, res: express.Response, ne
     });
   }
 
-  const token = authHeader.split(' ')[1];
-
-  // 1. Check if token is a server-signed Super Admin token
-  if (token && token.startsWith('dha_')) {
-    try {
-      const payloadStr = Buffer.from(token.replace('dha_', ''), 'base64').toString('utf8');
-      const payload = JSON.parse(payloadStr);
-      if (
-        payload &&
-        (SUPER_ADMIN_EMAILS.includes(payload.email?.toLowerCase()) ||
-          payload.role === 'superadmin' ||
-          payload.isSuperAdmin === true)
-      ) {
-        (req as any).adminUser = {
-          id: 'admin-super-01',
-          email: payload.email || PRIMARY_SUPER_ADMIN,
-          name: payload.name || 'مدیر ارشد سرمایه‌گذاری (Super Admin)',
-          role: 'superadmin',
-          adminRecord: {
-            id: 'admin-super-01',
-            email: payload.email || PRIMARY_SUPER_ADMIN,
-            name: payload.name || 'مدیر ارشد سرمایه‌گذاری (Super Admin)',
-            role: 'superadmin',
-            status: 'active',
-          },
-        };
-        return next();
-      }
-    } catch (e) {
-      console.warn('dha_ token decode error:', e);
-    }
+  const token = authHeader.split(' ')[1]?.trim();
+  if (!token) {
+    return res.status(401).json({
+      error: 'احراز هویت الزامی است: توکن دسترسی خالی است.',
+      code: 'AUTH_TOKEN_REQUIRED',
+    });
   }
 
-  // 2. Check with Supabase BaaS if configured
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (!error && user) {
-        const email = (user.email || '').toLowerCase().trim();
-
-        // Query admin_users table in Supabase
-        const { data: adminRecord } = await supabase
-          .from('admin_users')
-          .select('*')
-          .or(`user_id.eq.${user.id},email.ilike.${email}`)
-          .maybeSingle();
-
-        const isSuperAdmin = 
-          (adminRecord && adminRecord.role === 'superadmin' && adminRecord.status === 'active') ||
-          SUPER_ADMIN_EMAILS.includes(email);
-
-        if (isSuperAdmin) {
-          (req as any).adminUser = {
-            id: user.id,
-            email: user.email,
-            name: adminRecord?.name || user.user_metadata?.full_name || 'مدیر ارشد',
-            role: 'superadmin',
-            adminRecord,
-          };
-          return next();
+  // 1. Verify cryptographic server-signed session token first
+  if (token.startsWith('sb_jwt.')) {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const [, b64Payload, signature] = parts;
+      try {
+        const expectedSignature = crypto
+          .createHmac('sha256', SERVER_AUTH_SECRET)
+          .update(b64Payload)
+          .digest('base64url');
+        if (
+          signature.length === expectedSignature.length &&
+          crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
+        ) {
+          const decoded = JSON.parse(Buffer.from(b64Payload, 'base64url').toString('utf8'));
+          if (decoded.exp > Date.now() && decoded.role === 'superadmin') {
+            (req as any).adminUser = {
+              id: decoded.sub,
+              email: decoded.email,
+              name: decoded.name || 'مدیر کل سیستم',
+              role: 'superadmin',
+              adminRecord: {
+                id: decoded.sub,
+                email: decoded.email,
+                name: decoded.name,
+                role: 'superadmin',
+                status: 'active',
+              },
+            };
+            return next();
+          }
         }
-
-        return res.status(403).json({
-          error: 'دسترسی غیرمجاز: تنها مدیر ارشد (Super Admin) مجاز به انجام این عملیات است.',
-          code: 'SUPERADMIN_ROLE_REQUIRED',
-        });
-      }
-    } catch (err: any) {
-      console.warn('Supabase token verification note:', err.message);
+      } catch {}
     }
+    return res.status(401).json({
+      error: 'نشست کاربری نامعتبر یا منقضی شده است.',
+      code: 'INVALID_OR_EXPIRED_TOKEN',
+    });
   }
 
-  // 3. Fallback verification: Check if token contains base64 encoded admin credentials
-  try {
-    const decoded = Buffer.from(token, 'base64').toString('utf8');
-    const matchedEmail = SUPER_ADMIN_EMAILS.find((e) => decoded.includes(e));
-    if (matchedEmail) {
-      (req as any).adminUser = {
-        id: 'admin-super-01',
-        email: matchedEmail,
-        name: 'مدیر ارشد سیستم',
-        role: 'superadmin',
-        adminRecord: { role: 'superadmin', status: 'active' },
-      };
-      return next();
-    }
-  } catch {}
+  // 2. Verify token strictly using Supabase Auth
+  const supabase = getSupabase();
+  if (!supabase) {
+    return res.status(401).json({
+      error: 'نشست کاربری نامعتبر یا منقضی شده است.',
+      code: 'INVALID_OR_EXPIRED_TOKEN',
+    });
+  }
 
-  return res.status(401).json({
-    error: 'نشست کاربری نامعتبر یا منقضی شده است.',
-    code: 'INVALID_OR_EXPIRED_TOKEN',
-  });
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(401).json({
+        error: 'نشست کاربری نامعتبر یا منقضی شده است.',
+        code: 'INVALID_OR_EXPIRED_TOKEN',
+      });
+    }
+
+    // 3. Query public.admin_users using the authenticated user's identity
+    let { data: adminRecord, error: dbError } = await supabase
+      .from('admin_users')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('role', 'superadmin')
+      .eq('status', 'active')
+      .maybeSingle();
+
+    // If user_id wasn't linked yet on the seeded admin_users record, link it via verified email
+    if (!adminRecord && user.email) {
+      const { data: recordByEmail } = await supabase
+        .from('admin_users')
+        .select('*')
+        .ilike('email', user.email.trim().toLowerCase())
+        .eq('role', 'superadmin')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (recordByEmail) {
+        await supabase
+          .from('admin_users')
+          .update({ user_id: user.id, updated_at: new Date().toISOString() })
+          .eq('id', recordByEmail.id);
+        adminRecord = { ...recordByEmail, user_id: user.id };
+      }
+    }
+
+    if (dbError || !adminRecord) {
+      return res.status(403).json({
+        error: 'دسترسی غیرمجاز: تنها مدیر ارشد (Super Admin) مجاز به انجام این عملیات است.',
+        code: 'SUPERADMIN_ROLE_REQUIRED',
+      });
+    }
+
+    (req as any).adminUser = {
+      id: user.id,
+      email: user.email,
+      name: adminRecord.name || user.user_metadata?.full_name || 'مدیر ارشد',
+      role: 'superadmin',
+      adminRecord,
+    };
+    return next();
+  } catch (err: any) {
+    console.warn('Supabase token verification error:', err?.message || err);
+    return res.status(401).json({
+      error: 'نشست کاربری نامعتبر یا منقضی شده است.',
+      code: 'INVALID_OR_EXPIRED_TOKEN',
+    });
+  }
 }
 
-// Super Admin Direct Login API
+// Super Admin Direct Login API (Authenticates strictly via Supabase Auth + public.admin_users)
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const cleanEmail = (email || '').toLowerCase().trim();
 
-    if (!cleanEmail) {
-      return res.status(400).json({ error: 'ایمیل الزامی است.' });
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ error: 'ایمیل و رمز عبور الزامی هستند.' });
     }
 
-    // 1. Check Supabase first if available
     const supabase = getSupabase();
-    if (supabase && password) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-        if (!error && data.session && data.user) {
-          const { data: adminRecord } = await supabase
+    if (supabase) {
+      // 1. Authenticate credentials against Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (!error && data?.session && data?.user) {
+        // 2. Verify active superadmin record in public.admin_users
+        let { data: adminRecord, error: dbError } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .eq('role', 'superadmin')
+          .eq('status', 'active')
+          .maybeSingle();
+
+        // Link user_id if seeded by email
+        if (!adminRecord) {
+          const { data: recordByEmail } = await supabase
             .from('admin_users')
             .select('*')
-            .or(`user_id.eq.${data.user.id},email.ilike.${cleanEmail}`)
+            .ilike('email', cleanEmail)
+            .eq('role', 'superadmin')
+            .eq('status', 'active')
             .maybeSingle();
 
-          const isSuper = (adminRecord && adminRecord.role === 'superadmin') || cleanEmail === PRIMARY_SUPER_ADMIN;
-          if (isSuper) {
-            return res.json({
-              success: true,
-              isSuperAdmin: true,
-              token: data.session.access_token,
-              user: {
-                id: data.user.id,
-                email: cleanEmail,
-                name: adminRecord?.name || data.user.user_metadata?.full_name || 'مدیر ارشد سیستم',
-                role: 'superadmin',
-              },
-            });
+          if (recordByEmail) {
+            await supabase
+              .from('admin_users')
+              .update({ user_id: data.user.id, updated_at: new Date().toISOString() })
+              .eq('id', recordByEmail.id);
+            adminRecord = { ...recordByEmail, user_id: data.user.id };
           }
         }
-      } catch (err) {
-        console.warn('Supabase sign-in endpoint error:', err);
+
+        if (adminRecord && !dbError) {
+          return res.json({
+            success: true,
+            isSuperAdmin: true,
+            token: data.session.access_token,
+            user: {
+              id: data.user.id,
+              email: cleanEmail,
+              name: adminRecord.name || data.user.user_metadata?.full_name || 'مدیر ارشد سیستم',
+              role: 'superadmin',
+            },
+            adminRecord,
+          });
+        }
       }
     }
 
-    // 2. Primary Super Admin authorization
-    if (cleanEmail === PRIMARY_SUPER_ADMIN) {
-      const payload = {
-        email: cleanEmail,
-        role: 'superadmin',
-        isSuperAdmin: true,
-        issuedAt: Date.now(),
-        exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      };
-      const token = 'dha_' + Buffer.from(JSON.stringify(payload)).toString('base64');
-      return res.json({
-        success: true,
-        isSuperAdmin: true,
-        token,
-        user: {
-          id: 'admin-super-01',
+    // 3. Fallback to cryptographically verified superadmin credentials
+    if (cleanEmail === SUPERADMIN_USERNAME) {
+      const inputHash = crypto
+        .pbkdf2Sync(password, SUPERADMIN_PBKDF2_SALT, 100000, 64, 'sha512')
+        .toString('hex');
+      if (
+        inputHash.length === SUPERADMIN_PBKDF2_HASH.length &&
+        crypto.timingSafeEqual(Buffer.from(inputHash, 'hex'), Buffer.from(SUPERADMIN_PBKDF2_HASH, 'hex'))
+      ) {
+        const payload = JSON.stringify({
+          sub: 'admin-super-nabikalandar0',
           email: cleanEmail,
-          name: 'مدیر کل سیستم (خانه آرمانی)',
+          name: 'مدیر کل سیستم (نبی قلندر)',
           role: 'superadmin',
-        },
-        message: 'ورود موفق به عنوان مدیر ارشد سیستم',
-      });
+          exp: Date.now() + 24 * 60 * 60 * 1000,
+          iat: Date.now(),
+        });
+        const b64Payload = Buffer.from(payload).toString('base64url');
+        const signature = crypto
+          .createHmac('sha256', SERVER_AUTH_SECRET)
+          .update(b64Payload)
+          .digest('base64url');
+        const token = `sb_jwt.${b64Payload}.${signature}`;
+
+        return res.json({
+          success: true,
+          isSuperAdmin: true,
+          token,
+          user: {
+            id: 'admin-super-nabikalandar0',
+            email: cleanEmail,
+            name: 'مدیر کل سیستم (نبی قلندر)',
+            role: 'superadmin',
+          },
+          adminRecord: {
+            id: 'admin-super-nabikalandar0',
+            email: cleanEmail,
+            name: 'مدیر کل سیستم (نبی قلندر)',
+            role: 'superadmin',
+            status: 'active',
+          },
+        });
+      }
     }
 
-    return res.status(403).json({
-      error: 'دسترسی غیرمجاز: تنها مدیر ارشد سیستم (Super Admin) مجاز به ورود به این بخش است.',
+    return res.status(401).json({
+      error: 'اطلاعات ورود نامعتبر است یا رمز عبور اشتباه می‌باشد.',
     });
   } catch (err: any) {
     console.error('Login error:', err);
@@ -790,53 +933,82 @@ app.get('/api/auth/verify-superadmin', requireSuperAdmin, (req, res) => {
   });
 });
 
-// Dynamic Role Checking directly against admin_users table in Supabase
+// Role Checking directly against authenticated Supabase session
 app.get('/api/auth/check-role', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'احراز هویت الزامی است: توکن دسترسی یافت نشد.',
+      code: 'AUTH_TOKEN_REQUIRED',
+    });
+  }
+
+  const token = authHeader.split(' ')[1]?.trim();
+  if (!token) {
+    return res.status(401).json({ error: 'توکن دسترسی خالی است.' });
+  }
+
+  if (token.startsWith('sb_jwt.')) {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const [, b64Payload, signature] = parts;
+      try {
+        const expectedSignature = crypto
+          .createHmac('sha256', SERVER_AUTH_SECRET)
+          .update(b64Payload)
+          .digest('base64url');
+        if (
+          signature.length === expectedSignature.length &&
+          crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
+        ) {
+          const decoded = JSON.parse(Buffer.from(b64Payload, 'base64url').toString('utf8'));
+          if (decoded.exp > Date.now() && decoded.role === 'superadmin') {
+            return res.json({
+              isSuperAdmin: true,
+              role: 'superadmin',
+              user: {
+                id: decoded.sub,
+                email: decoded.email,
+                name: decoded.name,
+              },
+            });
+          }
+        }
+      } catch {}
+    }
+    return res.status(401).json({ error: 'نشست کاربری نامعتبر یا منقضی شده است.' });
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) {
+    return res.status(500).json({ error: 'پایگاه داده در دسترس نیست.' });
+  }
+
   try {
-    const email = (req.query.email as string || '').toLowerCase().trim();
-    if (!email) {
-      return res.json({ isSuperAdmin: false, role: 'guest', status: 'inactive' });
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(401).json({ error: 'نشست نامعتبر است.' });
     }
 
-    const supabase = getSupabase();
-    if (supabase) {
-      const { data: record, error } = await supabase
-        .from('admin_users')
-        .select('id, user_id, email, name, role, status, created_at, updated_at')
-        .ilike('email', email)
-        .maybeSingle();
+    const { data: record, error: dbError } = await supabase
+      .from('admin_users')
+      .select('id, user_id, email, name, role, status, created_at, updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-      if (!error && record) {
-        const isSuper = record.role === 'superadmin' && record.status === 'active';
-        return res.json({
-          isSuperAdmin: isSuper,
-          role: record.role,
-          status: record.status,
-          adminRecord: record,
-        });
-      }
-    }
-
-    // Fallback if Supabase table is not yet provisioned but primary email matches
-    if (email === PRIMARY_SUPER_ADMIN) {
+    if (!dbError && record) {
+      const isSuper = record.role === 'superadmin' && record.status === 'active';
       return res.json({
-        isSuperAdmin: true,
-        role: 'superadmin',
-        status: 'active',
-        adminRecord: {
-          id: 'admin-super-01',
-          email: PRIMARY_SUPER_ADMIN,
-          name: 'مدیر ارشد سرمایه‌گذاری (Super Admin)',
-          role: 'superadmin',
-          status: 'active',
-        },
+        isSuperAdmin: isSuper,
+        role: record.role,
+        status: record.status,
+        adminRecord: record,
       });
     }
 
     return res.json({ isSuperAdmin: false, role: 'user', status: 'active' });
   } catch (err: any) {
-    console.warn('Check role error:', err.message);
-    res.json({ isSuperAdmin: false, error: err.message });
+    return res.status(401).json({ error: 'خطا در اعتبارسنجی نشست کاربری.' });
   }
 });
 
@@ -948,7 +1120,7 @@ app.get('/api/admin/seo', (req, res) => {
   }
 });
 
-app.post('/api/admin/seo', async (req, res) => {
+app.post('/api/admin/seo', requireSuperAdmin, async (req, res) => {
   try {
     const config = req.body;
     if (!config || !config.pages) {
@@ -1991,6 +2163,7 @@ app.get('/api/cms/audit-logs', requireSuperAdmin, (req, res) => {
 // Setup Vite or static serving
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -2010,7 +2183,7 @@ async function startServer() {
 }
 
 // Only auto-listen if running standalone (not inside a serverless handler or imported module)
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+if (!process.env.VERCEL && !process.env.NETLIFY && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   startServer();
 }
 

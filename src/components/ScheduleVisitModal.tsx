@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Calendar, Clock, CheckCircle2, User, Phone, MessageSquare, Sparkles, Building } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Property, VisitBooking } from '../types';
+import { Property, VisitBooking, UserProfile } from '../types';
 import { toPersianDigits, formatPrice } from '../utils/formatters';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import { submitViewingRequest } from '../services/leadsAndBookingsService';
@@ -10,18 +10,20 @@ interface ScheduleVisitModalProps {
   property: Property | null;
   onClose: () => void;
   onSaveBooking: (booking: VisitBooking) => void;
+  user?: UserProfile | null;
 }
 
 export function ScheduleVisitModal({
   property,
   onClose,
   onSaveBooking,
+  user,
 }: ScheduleVisitModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>('فردا (۱۶ خرداد)');
   const [selectedTime, setSelectedTime] = useState<string>('عصر ۱۶:۰۰ الی ۱۸:۰۰');
   const [visitType, setVisitType] = useState<'in-person' | 'virtual-3d'>('in-person');
-  const [name, setName] = useState<string>('');
-  const [phone, setPhone] = useState<string>('');
+  const [name, setName] = useState<string>(user?.displayName || '');
+  const [phone, setPhone] = useState<string>(user?.phoneNumber || '');
   const [notes, setNotes] = useState<string>('');
 
   const [loading, setLoading] = useState<boolean>(false);

@@ -1,6 +1,8 @@
 import { Property } from '../types';
 import { formatPrice } from './formatters';
 import { SiteSEOConfig, PageSEOConfig, DEFAULT_SEO_CONFIG } from '../types/seo';
+import { getAdminSessionToken } from '../services/supabaseAuth';
+import { getSupabaseClient } from '../lib/supabase';
 
 const SEO_STORAGE_KEY = 'dream_home_seo_settings_v1';
 
@@ -59,9 +61,25 @@ export async function saveSEOConfigToServer(config: SiteSEOConfig): Promise<{
 
   // 2. Send to backend to directly write to index.html and metadata.json
   try {
+    let token = getAdminSessionToken();
+    if (!token) {
+      const sb = getSupabaseClient();
+      if (sb) {
+        try {
+          const { data } = await sb.auth.getSession();
+          token = data.session?.access_token || null;
+        } catch {}
+      }
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch('/api/admin/seo', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(config),
     });
 

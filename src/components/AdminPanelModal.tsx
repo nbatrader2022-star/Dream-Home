@@ -33,6 +33,7 @@ import {
   Sliders,
   Palette,
   ShieldAlert,
+  LogOut,
   Copy,
   Check,
   Globe,
@@ -48,6 +49,7 @@ import { DynamicSEOTab } from './admin/DynamicSEOTab';
 import { CMSElement } from '../types/cms';
 import { isUserAuthorizedAdmin, SUPER_ADMIN_EMAIL } from '../data/admins';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import { isGoogleAuthAvailable } from '../lib/firebase';
 import {
   signInAdminWithSupabase,
   signOutAdmin,
@@ -159,29 +161,17 @@ export function AdminPanelModal({
         setAdminUserEmail(state.user?.email || ADMIN_EMAIL);
         onAdminAuthChange?.(true);
       } else {
-        // If current Google user matches authorized list, verify with Supabase backend
-        if (user?.email && isUserAuthorizedAdmin(user.email)) {
-          verifySuperAdminRole(user.uid, user.email, state.token || undefined).then((res) => {
-            if (res.isSuperAdmin) {
-              setIsAdminAuthenticated(true);
-              setAdminToken(state.token);
-              setAdminUserEmail(user.email!);
-              onAdminAuthChange?.(true);
-            }
-          });
-        } else {
-          setIsAdminAuthenticated(false);
-          setAdminToken(null);
-          setAdminUserEmail('');
-          onAdminAuthChange?.(false);
-        }
+        setIsAdminAuthenticated(false);
+        setAdminToken(null);
+        setAdminUserEmail('');
+        onAdminAuthChange?.(false);
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [user?.email, user?.uid, onAdminAuthChange]);
+  }, [onAdminAuthChange]);
 
   // Property edit/add state
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
@@ -261,17 +251,8 @@ export function AdminPanelModal({
 
   if (!isOpen) return null;
 
-  // Check if current user is admin via real Supabase Auth or Superadmin status
-  const isAuthorizedEmail = Boolean(
-    user?.email && (
-      user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ||
-      user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() ||
-      user.email.toLowerCase() === 'luxury.investor@gmail.com' ||
-      user.email.toLowerCase() === 'nabikalandar0@gmail.com' ||
-      isUserAuthorizedAdmin(user.email)
-    )
-  );
-  const isActualAdmin = isAdminAuthenticated || isAuthorizedEmail;
+  // Admin authorization strictly requires a cryptographically verified Super Admin session
+  const isActualAdmin = isAdminAuthenticated;
 
   const handleSupabaseLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -607,9 +588,11 @@ export function AdminPanelModal({
             {isActualAdmin && (
               <button
                 onClick={handleAdminLogout}
-                className="hidden sm:inline-flex text-[11px] text-white/60 hover:text-red-400 px-3 py-1.5 rounded-lg border border-white/10 hover:border-red-400/40 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-red-300 hover:text-red-200 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/30 transition-colors cursor-pointer"
+                title="خروج از پنل مدیریت"
               >
-                خروج از مدیریت
+                <LogOut className="w-3.5 h-3.5" />
+                <span>خروج از مدیریت</span>
               </button>
             )}
             <button
@@ -636,24 +619,28 @@ export function AdminPanelModal({
             </p>
 
             <div className="flex flex-col gap-3.5 w-full">
-              {/* Google Login Option */}
-              <button
-                onClick={onGoogleSignIn}
-                className="w-full bg-white hover:bg-stone-100 text-[#1A1A2E] font-black py-3 px-5 rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2.5 text-xs shadow-md"
-              >
-                <img
-                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                  alt="Google"
-                  className="w-4 h-4"
-                />
-                <span>ورود با حساب گوگل ({ADMIN_EMAIL})</span>
-              </button>
+              {/* Google Login Option (Active only when Google Auth is configured) */}
+              {isGoogleAuthAvailable() && (
+                <>
+                  <button
+                    onClick={onGoogleSignIn}
+                    className="w-full bg-white hover:bg-stone-100 text-[#1A1A2E] font-black py-3 px-5 rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2.5 text-xs shadow-md"
+                  >
+                    <img
+                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                      alt="Google"
+                      className="w-4 h-4"
+                    />
+                    <span>ورود با حساب گوگل</span>
+                  </button>
 
-              <div className="flex items-center gap-3 my-1 text-white/30 text-xs">
-                <span className="h-px bg-white/10 flex-1" />
-                <span>یا ورود با ایمیل و گذرواژه Supabase</span>
-                <span className="h-px bg-white/10 flex-1" />
-              </div>
+                  <div className="flex items-center gap-3 my-1 text-white/30 text-xs">
+                    <span className="h-px bg-white/10 flex-1" />
+                    <span>یا ورود با ایمیل و گذرواژه Supabase</span>
+                    <span className="h-px bg-white/10 flex-1" />
+                  </div>
+                </>
+              )}
 
               {/* Supabase Email & Password Form */}
               <form onSubmit={handleSupabaseLogin} className="flex flex-col gap-3 w-full text-right">

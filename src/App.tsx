@@ -19,6 +19,7 @@ import { Footer } from './components/Footer';
 import { CustomCursor, ToastContainer, ToastMessage } from './components/CustomCursor';
 import { GeminiChatbot } from './components/GeminiChatbot';
 import { AdminPanelModal } from './components/AdminPanelModal';
+import { LoginModal } from './components/LoginModal';
 import { VisualEditorModal } from './components/VisualEditor/VisualEditorModal';
 import { useCMS } from './hooks/useCMS';
 import { PROPERTIES_DATA } from './data/properties';
@@ -41,12 +42,13 @@ import { AccessDeniedPage } from './components/pages/AccessDeniedPage';
 import { saveNewProperty, updateProperty, deleteProperty } from './services/propertiesService';
 import { getAdminSessionToken, signOutAdmin } from './services/supabaseAuth';
 import {
-  signInWithGoogle,
-  signOutUser,
-  getLocalStoredUser,
-  saveUserSavedProperties,
-  subscribeToAuth,
-} from './lib/firebase';
+  signInNormalUserWithGoogle,
+  signOutNormalUser,
+  saveUserFavoriteProperties,
+  subscribeToNormalUserAuth,
+  getCurrentNormalUser,
+} from './services/supabaseUserAuth';
+import { UserProfileModal } from './components/UserProfileModal';
 import { updatePropertySEO, applyPageSEO, fetchServerSEOConfig } from './utils/seo';
 import {
   checkSavedPropertiesPriceChanges,
@@ -65,8 +67,9 @@ export default function App() {
     trackCalculator,
     trackScheduleVisit,
   } = useTelemetry();
-  // Auth user state
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getLocalStoredUser());
+  // Auth user state - Strictly populated from Supabase Auth (no localStorage fakes)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
 
   // Persistence state
   const [savedPropertyIds, setSavedPropertyIds] = useState<string[]>(() => {
@@ -107,6 +110,7 @@ export default function App() {
   const [scheduleTargetProperty, setScheduleTargetProperty] = useState<Property | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | PropertyAgent | null>(null);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [isVisualEditorOpen, setIsVisualEditorOpen] = useState<boolean>(false);
   
   // Full Dynamic Visual CMS Engine
@@ -141,31 +145,23 @@ export default function App() {
     };
   }, []);
 
-  // Calculate if the current user is authorized as Admin
-  const isAuthorizedEmail = Boolean(
-    currentUser?.email && (
-      currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ||
-      currentUser.email.toLowerCase() === 'luxury.investor@gmail.com' ||
-      currentUser.email.toLowerCase() === 'nabikalandar0@gmail.com' ||
-      isUserAuthorizedAdmin(currentUser.email)
-    )
-  );
-  const isUserAdmin = Boolean(
-    isAuthorizedEmail ||
-    isAdminSession
-  );
+  // Admin authorization is strictly based on a verified active Supabase session
+  const isUserAdmin = Boolean(isAdminSession);
 
   // Super Admin secret shortcut: Ctrl + Shift + A (or Cmd + Shift + A)
+  // Only opens the administrative interface if the current real Supabase session has already been verified as an active Super Admin
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A' || e.key === 'ش')) {
         e.preventDefault();
-        setIsAdminModalOpen(true);
+        if (isAdminSession) {
+          setIsAdminModalOpen(true);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isAdminSession]);
 
   // Dynamic Properties (stored in localStorage for persistence)
   const [properties, setProperties] = useState<Property[]>(() => {
@@ -219,9 +215,9 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Auth listener and cloud synchronization
+  // Auth listener and cloud synchronization (Strictly Supabase Auth)
   useEffect(() => {
-    const unsubscribe = subscribeToAuth(async (user) => {
+    const unsubscribe = subscribeToNormalUserAuth((user) => {
       setCurrentUser(user);
       if (user && user.savedProperties && user.savedProperties.length > 0) {
         setSavedPropertyIds((prev) => Array.from(new Set([...prev, ...(user.savedProperties || [])])));
@@ -230,10 +226,10 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync saved properties to cloud when logged in
+  // Sync saved properties to Supabase profiles table when logged in
   useEffect(() => {
     if (currentUser?.uid) {
-      saveUserSavedProperties(currentUser.uid, savedPropertyIds);
+      saveUserFavoriteProperties(currentUser.uid, savedPropertyIds);
     }
   }, [currentUser, savedPropertyIds]);
 
@@ -315,17 +311,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleAdminHotKey);
   }, []);
 
+  const handleSuccessAdminLogin = (authState: any) => {
+    setIsAdminSession(true);
+    if (authState?.user) {
+      setCurrentUser(authState.user);
+    }
+    setIsLoginModalOpen(false);
+    // User requirement: "بعد از تأیید صحیح، مستقیم وارد پنل مدیریت سایت بشه"
+    setIsAdminModalOpen(true);
+    showToast('ورود موفق به پنل مدیریت', 'با موفقیت وارد شدید و به پنل مدیریت هدایت شدید.');
+  };
+
   const handleGoogleSignIn = async () => {
     try {
-      const user = await signInWithGoogle(savedPropertyIds);
-      setCurrentUser(user);
-      if (user.savedProperties && user.savedProperties.length > 0) {
-        setSavedPropertyIds(Array.from(new Set([...savedPropertyIds, ...user.savedProperties])));
+      const result = await signInNormalUserWithGoogle({
+        savedPropertyIds,
+      });
+      if (result.openedPopup) {
+        showToast('احراز هویت با گوگل', 'پنجره ورود گوگل باز شد. لطفاً حساب کاربری خود را انتخاب فرمایید.');
       }
-      showToast('ورود موفق با گوگل', `خوش آمدید، ${user.displayName}. همگام‌سازی ابری املاک فعال شد.`);
-    } catch (err) {
-      console.error(err);
-      showToast('خطا در ورود', 'برقراری ارتباط با سرویس ورود با خطا مواجه شد.');
+    } catch (err: any) {
+      console.warn('Google sign-in attempt notice:', err?.message || err);
+      showToast('راهنمای ورود با گوگل', err?.message || 'خطا در برقراری ارتباط با سامانه ورود گوگل.');
     }
   };
 
@@ -336,7 +343,7 @@ export default function App() {
       console.warn('signOutAdmin err:', err);
     }
     try {
-      await signOutUser();
+      await signOutNormalUser();
     } catch (err) {
       console.error(err);
     }
@@ -374,7 +381,7 @@ export default function App() {
       console.warn('signOutAdmin err:', err);
     }
     try {
-      await signOutUser();
+      await signOutNormalUser();
     } catch (err) {
       console.error(err);
     }
@@ -875,6 +882,8 @@ export default function App() {
         isAdmin={isUserAdmin}
         onNavigate={handleNavigate}
         user={currentUser}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
         onGoogleSignIn={handleGoogleSignIn}
         onSignOut={handleSignOut}
         currentPage={currentPage}
@@ -934,7 +943,7 @@ export default function App() {
               <AccessDeniedPage
                 userEmail={currentUser?.email || null}
                 onBackToHome={handleBackToHome}
-                onOpenSignIn={() => handleGoogleSignIn()}
+                onOpenSignIn={() => setIsLoginModalOpen(true)}
               />
             ) : null
           )}
@@ -1106,6 +1115,7 @@ export default function App() {
           property={scheduleTargetProperty || properties[0]}
           onClose={() => setIsScheduleVisitOpen(false)}
           onSaveBooking={handleSaveBooking}
+          user={currentUser}
         />
       )}
 
@@ -1125,6 +1135,25 @@ export default function App() {
         }}
         onOpenMap={() => setIsMapExplorerOpen(true)}
         onSelectProperty={(prop) => handleOpenPropertyPage(prop.slug || prop.id)}
+      />
+
+      {/* Unified Login Modal (Username/Password or Google OAuth) */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSuccessAdminLogin={handleSuccessAdminLogin}
+        onGoogleSignIn={handleGoogleSignIn}
+      />
+
+      {/* User Profile Modal for Normal Users (Supabase Google Auth) */}
+      <UserProfileModal
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        user={currentUser}
+        savedCount={savedPropertyIds.length}
+        onOpenSavedDrawer={() => setIsSavedDrawerOpen(true)}
+        onSignOut={handleSignOut}
+        onUpdateUser={(updated) => setCurrentUser(updated)}
       />
 
       {/* Admin Panel Modal for Site Elements, Properties, Articles Management */}

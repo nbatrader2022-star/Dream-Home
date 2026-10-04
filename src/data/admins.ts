@@ -62,13 +62,10 @@ export function saveStoredAdmins(admins: AdminUser[]): void {
   }
 }
 
-export function isUserAuthorizedAdmin(userEmail?: string | null): boolean {
-  if (!userEmail) return false;
-  const normalized = userEmail.trim().toLowerCase();
-  if (normalized === 'luxury.investor@gmail.com' || normalized === 'nabikalandar0@gmail.com') return true;
-
-  const admins = getStoredAdmins();
-  return admins.some((a) => a.email.toLowerCase() === normalized);
+export function isUserAuthorizedAdmin(_userEmail?: string | null): boolean {
+  // Authorization is strictly governed by Supabase Auth and public.admin_users database records.
+  // Email strings and localStorage lists must never grant administrative authority.
+  return false;
 }
 
 export function getAdminVisibilitySettings(): { hideFromNonAdmins: boolean } {
